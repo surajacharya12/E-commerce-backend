@@ -4,6 +4,7 @@ const asyncHandler = require("express-async-handler");
 const Notification = require("../model/notification");
 const { notificationUpload, cloudinary } = require("../config/cloudinary");
 const OneSignal = require("onesignal-node");
+const { cleanupOldNotifications } = require("../services/notificationCleanup");
 const dotenv = require("dotenv");
 dotenv.config();
 
@@ -13,15 +14,31 @@ const client = new OneSignal.Client(
   process.env.ONE_SIGNAL_REST_API_KEY
 );
 
-// GET all notifications
+// GET all notifications (with automatic cleanup)
 router.get(
   "/",
   asyncHandler(async (req, res) => {
+    // Run cleanup automatically when fetching notifications
+    await cleanupOldNotifications();
+
     const notifications = await Notification.find({}).sort({ createdAt: -1 });
     res.json({
       success: true,
       message: "Notifications retrieved successfully.",
       data: notifications,
+    });
+  })
+);
+
+// Manual cleanup endpoint
+router.delete(
+  "/cleanup",
+  asyncHandler(async (req, res) => {
+    const deletedCount = await cleanupOldNotifications();
+    res.json({
+      success: true,
+      message: `Cleanup completed. Deleted ${deletedCount} old notifications.`,
+      deletedCount: deletedCount,
     });
   })
 );

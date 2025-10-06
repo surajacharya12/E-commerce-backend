@@ -4,6 +4,9 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const asyncHandler = require("express-async-handler");
 const dotenv = require("dotenv");
+const {
+  startNotificationCleanupScheduler,
+} = require("./services/notificationCleanup");
 dotenv.config();
 
 const app = express();
@@ -61,4 +64,7 @@ app.use((error, req, res, next) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+
+  // Start the notification cleanup scheduler
+  startNotificationCleanupScheduler();
 });

@@ -1,47 +1,47 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const orderSchema = new mongoose.Schema({
   userID: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    ref: "User",
+    required: true,
   },
   orderDate: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
   orderStatus: {
     type: String,
-    enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
-    default: 'pending'
+    enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
+    default: "pending",
   },
   items: [
     {
       productID: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Product',
-        required: true
+        ref: "Product",
+        required: true,
       },
       productName: {
         type: String,
-        required: true
+        required: true,
       },
       quantity: {
         type: Number,
-        required: true
+        required: true,
       },
       price: {
         type: Number,
-        required: true
+        required: true,
       },
       variant: {
         type: String,
       },
-    }
+    },
   ],
   totalPrice: {
     type: Number,
-    required: true
+    required: true,
   },
   shippingAddress: {
     phone: String,
@@ -49,28 +49,27 @@ const orderSchema = new mongoose.Schema({
     city: String,
     state: String,
     postalCode: String,
-    country: String
+    country: String,
   },
-
   paymentMethod: {
     type: String,
-    enum: ['cod', 'prepaid']
+    enum: ["cod", "prepaid"],
+    required: true,
   },
-
   couponCode: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Coupon'
-},
+    ref: "Coupon",
+  },
   orderTotal: {
     subtotal: Number,
     discount: Number,
-    total: Number
+    total: Number,
   },
   trackingUrl: {
-    type: String
+    type: String,
   },
 });
 
-const Order = mongoose.model('Order', orderSchema);
+const Order = mongoose.model("Order", orderSchema);
 
 module.exports = Order;

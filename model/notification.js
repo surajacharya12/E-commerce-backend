@@ -1,29 +1,32 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 // Define the Notification schema
-const notificationSchema = new mongoose.Schema({
+const notificationSchema = new mongoose.Schema(
+  {
     notificationId: {
-        type: String,
-        required: [true, 'Notification ID is required'],
-        unique: true
+      type: String,
+      required: false,
+      sparse: true, // This allows multiple null values
     },
     title: {
-        type: String,
-        required: [true, 'Title is required'],
-        trim: true
+      type: String,
+      required: [true, "Title is required"],
+      trim: true,
     },
     description: {
-        type: String,
-        required: [true, 'Description is required'],
-        trim: true
+      type: String,
+      required: [true, "Description is required"],
+      trim: true,
     },
     imageUrl: {
-        type: String,
-        trim: true
+      type: String,
+      trim: true,
     },
-}, { timestamps: true });
+  },
+  { timestamps: true }
+);
 
 // Create the Notification model
-const Notification = mongoose.model('Notification', notificationSchema);
+const Notification = mongoose.model("Notification", notificationSchema);
 
 module.exports = Notification;

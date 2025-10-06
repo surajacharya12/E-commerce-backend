@@ -61,7 +61,6 @@ async function createProductHelper(productData, imageUrls = []) {
     name,
     description,
     quantity,
-    stock,
     price,
     offerPrice,
     proCategoryId,
@@ -69,7 +68,6 @@ async function createProductHelper(productData, imageUrls = []) {
     proBrandId,
     proVariantTypeId,
     proVariantId,
-    adminRating,
   } = productData;
 
   if (!name || !quantity || !price || !proCategoryId || !proSubCategoryId) {
@@ -78,14 +76,10 @@ async function createProductHelper(productData, imageUrls = []) {
     );
   }
 
-  // Use stock if provided, otherwise use quantity as stock
-  const stockValue = stock ? parseInt(stock) : parseInt(quantity);
-
   const newProduct = new Product({
     name,
     description,
     quantity: parseInt(quantity),
-    stock: stockValue,
     price: parseFloat(price),
     offerPrice: offerPrice ? parseFloat(offerPrice) : undefined,
     proCategoryId,
@@ -94,10 +88,6 @@ async function createProductHelper(productData, imageUrls = []) {
     proVariantTypeId: proVariantTypeId || undefined,
     proVariantId: proVariantId || [],
     images: imageUrls,
-    rating: {
-      adminRating: adminRating ? parseFloat(adminRating) : 0,
-      averageRating: adminRating ? parseFloat(adminRating) : 0,
-    },
   });
 
   return await newProduct.save();
@@ -140,7 +130,6 @@ router.post(
               imageUrls.push({ image: index + 1, url: imageUrl });
             }
           });
-
           const newProduct = await createProductHelper(req.body, imageUrls);
           res.json({
             success: true,
@@ -169,12 +158,12 @@ router.post(
   })
 );
 
-// Update a product
+// Update a product with new images
 router.put(
   "/:id",
   asyncHandler(async (req, res) => {
-    const productId = req.params.id;
     const contentType = req.get("Content-Type");
+    const productID = req.params.id;
 
     if (contentType && contentType.includes("multipart/form-data")) {
       // Handle multipart form data with images
@@ -185,94 +174,65 @@ router.put(
         { name: "image4", maxCount: 1 },
         { name: "image5", maxCount: 1 },
       ])(req, res, async function (err) {
-        if (err) {
-          return res.status(500).json({ success: false, message: err.message });
+        if (err instanceof multer.MulterError) {
+          if (err.code === "LIMIT_FILE_SIZE") {
+            err.message =
+              "File size is too large. Maximum filesize is 5MB per image.";
+          }
+          return res.json({ success: false, message: err.message });
+        } else if (err) {
+          return res.json({ success: false, message: err.message });
         }
 
         try {
-          const productToUpdate = await Product.findById(productId);
+          const productToUpdate = await Product.findById(productID);
           if (!productToUpdate) {
             return res
               .status(404)
               .json({ success: false, message: "Product not found." });
           }
 
-          const {
-            name,
-            description,
-            quantity,
-            stock,
-            price,
-            offerPrice,
-            proCategoryId,
-            proSubCategoryId,
-            proBrandId,
-            proVariantTypeId,
-            proVariantId,
-            adminRating,
-          } = req.body;
+          // Update product fields from body
+          Object.assign(productToUpdate, req.body);
 
-          // Update product properties
-          if (name) productToUpdate.name = name;
-          if (description !== undefined)
-            productToUpdate.description = description;
-          if (quantity) {
-            productToUpdate.quantity = parseInt(quantity);
-            // If stock is provided, use it; otherwise use quantity as stock
-            productToUpdate.stock =
-              stock !== undefined ? parseInt(stock) : parseInt(quantity);
-          }
-          if (stock !== undefined && !quantity) {
-            productToUpdate.stock = parseInt(stock);
-          }
-          if (price) productToUpdate.price = parseFloat(price);
-          if (offerPrice !== undefined)
-            productToUpdate.offerPrice = offerPrice
-              ? parseFloat(offerPrice)
-              : undefined;
-          if (proCategoryId) productToUpdate.proCategoryId = proCategoryId;
-          if (proSubCategoryId)
-            productToUpdate.proSubCategoryId = proSubCategoryId;
-          if (proBrandId) productToUpdate.proBrandId = proBrandId;
-          if (proVariantTypeId)
-            productToUpdate.proVariantTypeId = proVariantTypeId;
-          if (proVariantId) productToUpdate.proVariantId = proVariantId;
-
-          // Update admin rating and recalculate average
-          if (adminRating !== undefined) {
-            productToUpdate.rating.adminRating = parseFloat(adminRating);
-            // Recalculate average rating
-            const userRating = productToUpdate.rating.userRating || 0;
-            const totalReviews = productToUpdate.rating.totalReviews || 0;
-
-            if (totalReviews > 0) {
-              productToUpdate.rating.averageRating =
-                (userRating + parseFloat(adminRating)) / 2;
-            } else {
-              productToUpdate.rating.averageRating = parseFloat(adminRating);
-            }
-          }
-
-          // Update images
+          // Delete old images and process new ones
+          const newImageUrls = [];
           const fields = ["image1", "image2", "image3", "image4", "image5"];
-          fields.forEach((field, index) => {
+
+          for (const field of fields) {
             if (req.files && req.files[field] && req.files[field].length > 0) {
+              // New image uploaded for this slot
               const file = req.files[field][0];
               const imageUrl = file.path; // Cloudinary URL
-
-              let imageEntry = productToUpdate.images.find(
-                (img) => img.image === index + 1
+              const existingImage = productToUpdate.images.find(
+                (img) => img.image === fields.indexOf(field) + 1
               );
-              if (imageEntry) {
-                imageEntry.url = imageUrl;
-              } else {
-                productToUpdate.images.push({
-                  image: index + 1,
-                  url: imageUrl,
-                });
+
+              if (
+                existingImage &&
+                existingImage.url &&
+                existingImage.url !== "no_url"
+              ) {
+                const publicId = existingImage.url
+                  .split("/")
+                  .pop()
+                  .split(".")[0];
+                await cloudinary.uploader.destroy(
+                  `online_store/products/${publicId}`
+                );
               }
+              newImageUrls.push({
+                image: fields.indexOf(field) + 1,
+                url: imageUrl,
+              });
             }
-          });
+          }
+
+          // Replace old images with new ones and existing ones
+          productToUpdate.images = productToUpdate.images.filter(
+            (img) => !newImageUrls.some((newImg) => newImg.image === img.image)
+          );
+          productToUpdate.images.push(...newImageUrls);
 
           await productToUpdate.save();
           res.json({
@@ -288,69 +248,13 @@ router.put(
     } else {
       // Handle JSON data
       try {
-        const productToUpdate = await Product.findById(productId);
+        const productToUpdate = await Product.findById(productID);
         if (!productToUpdate) {
           return res
             .status(404)
             .json({ success: false, message: "Product not found." });
         }
-
-        const {
-          name,
-          description,
-          quantity,
-          stock,
-          price,
-          offerPrice,
-          proCategoryId,
-          proSubCategoryId,
-          proBrandId,
-          proVariantTypeId,
-          proVariantId,
-          adminRating,
-        } = req.body;
-
-        // Update product properties
-        if (name) productToUpdate.name = name;
-        if (description !== undefined)
-          productToUpdate.description = description;
-        if (quantity) {
-          productToUpdate.quantity = parseInt(quantity);
-          // If stock is provided, use it; otherwise use quantity as stock
-          productToUpdate.stock =
-            stock !== undefined ? parseInt(stock) : parseInt(quantity);
-        }
-        if (stock !== undefined && !quantity) {
-          productToUpdate.stock = parseInt(stock);
-        }
-        if (price) productToUpdate.price = parseFloat(price);
-        if (offerPrice !== undefined)
-          productToUpdate.offerPrice = offerPrice
-            ? parseFloat(offerPrice)
-            : undefined;
-        if (proCategoryId) productToUpdate.proCategoryId = proCategoryId;
-        if (proSubCategoryId)
-          productToUpdate.proSubCategoryId = proSubCategoryId;
-        if (proBrandId) productToUpdate.proBrandId = proBrandId;
-        if (proVariantTypeId)
-          productToUpdate.proVariantTypeId = proVariantTypeId;
-        if (proVariantId) productToUpdate.proVariantId = proVariantId;
-
-        // Update admin rating and recalculate average
-        if (adminRating !== undefined) {
-          productToUpdate.rating.adminRating = parseFloat(adminRating);
-          // Recalculate average rating
-          const userRating = productToUpdate.rating.userRating || 0;
-          const totalReviews = productToUpdate.rating.totalReviews || 0;
-
-          if (totalReviews > 0) {
-            productToUpdate.rating.averageRating =
-              (userRating + parseFloat(adminRating)) / 2;
-          } else {
-            productToUpdate.rating.averageRating = parseFloat(adminRating);
-          }
-        }
-
+        Object.assign(productToUpdate, req.body);
         await productToUpdate.save();
         res.json({
           success: true,

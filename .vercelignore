@@ -1,0 +1,44 @@
+# Dependencies
+node_modules
+
+# Environment files (use Vercel dashboard for env vars)
+.env*
+!.env.example
+
+# Logs
+*.log
+logs
+
+# Development files
+.DS_Store
+.vscode
+.idea
+
+# Test files
+test
+tests
+__tests__
+
+# Documentation (optional - remove if you want docs in deployment)
+*.md
+!README.md
+
+# Scripts
+*.sh
+setup-production.js
+
+# Git
+.git
+.gitignore
+
+# Temporary files
+tmp
+temp
+
+# Cache
+.cache
+.npm
+
+# Build artifacts (not needed for serverless)
+dist
+build

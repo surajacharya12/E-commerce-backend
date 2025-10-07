@@ -40,32 +40,39 @@
 
 ## 🚀 Quick Deployment Steps
 
-### 1. **Prepare Environment**
+### **Option 1: One-Click Deployment**
 
 ```bash
 cd online_store_api
-npm run setup-production
-```
-
-### 2. **Update Environment Variables**
-
-- Copy `.env.example` to `.env`
-- Update all values with production credentials
-- Ensure MongoDB Atlas is configured
-- Set up Cloudinary account
-- Configure email service
-
-### 3. **Deploy to Vercel**
-
-```bash
 npm run deploy
 ```
 
-### 4. **Alternative Deployment Platforms**
+### **Option 2: Manual Deployment**
 
-- **Railway**: Follow DEPLOYMENT.md
-- **Render**: Follow DEPLOYMENT.md
-- **Heroku**: Follow DEPLOYMENT.md
+```bash
+# 1. Prepare environment
+npm run setup-production
+
+# 2. Install Vercel CLI
+npm install -g vercel
+
+# 3. Login and deploy
+vercel login
+vercel --prod
+```
+
+### **Option 3: GitHub Integration**
+
+1. Push to GitHub repository
+2. Connect to Vercel dashboard
+3. Set environment variables
+4. Auto-deploy on push
+
+### **Alternative Platforms**
+
+- **Railway**: `railway up`
+- **Render**: Connect GitHub repo
+- **Heroku**: `git push heroku main`
 
 ## 🔍 **Environment Variables Checklist**
 

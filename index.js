@@ -44,33 +44,58 @@ app.use("/image/poster", express.static("public/posters"));
 // MongoDB connection with production optimizations
 const URL = process.env.MONGO_URL;
 const mongoOptions = {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
   maxPoolSize: 10, // Maintain up to 10 socket connections
   serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
   socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-  bufferMaxEntries: 0, // Disable mongoose buffering
   bufferCommands: false, // Disable mongoose buffering
+  // Removed deprecated options: useNewUrlParser, useUnifiedTopology, bufferMaxEntries
 };
 
-mongoose.connect(URL, mongoOptions);
+// Connect to MongoDB with error handling
+const connectDB = async () => {
+  try {
+    await mongoose.connect(URL, mongoOptions);
+    console.log("Connected to Database successfully");
+  } catch (error) {
+    console.error("MongoDB connection error:", error);
+    // In production, you might want to retry or exit
+    if (process.env.NODE_ENV === "production") {
+      console.error("Failed to connect to database in production");
+      process.exit(1);
+    }
+  }
+};
+
+// Initialize database connection
+connectDB();
+
 const db = mongoose.connection;
 db.on("error", (error) => {
   console.error("MongoDB connection error:", error);
 });
-db.once("open", () => {
-  console.log("Connected to Database successfully");
-});
 
-// Handle MongoDB connection issues in production
 db.on("disconnected", () => {
   console.log("MongoDB disconnected");
+  // Attempt to reconnect in production
+  if (process.env.NODE_ENV === "production") {
+    setTimeout(connectDB, 5000);
+  }
 });
 
+db.on("reconnected", () => {
+  console.log("MongoDB reconnected");
+});
+
+// Graceful shutdown
 process.on("SIGINT", async () => {
-  await mongoose.connection.close();
-  console.log("MongoDB connection closed through app termination");
-  process.exit(0);
+  try {
+    await mongoose.connection.close();
+    console.log("MongoDB connection closed through app termination");
+    process.exit(0);
+  } catch (error) {
+    console.error("Error during graceful shutdown:", error);
+    process.exit(1);
+  }
 });
 
 app.use("/categories", require("./routes/category"));

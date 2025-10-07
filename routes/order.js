@@ -1,7 +1,8 @@
 const express = require("express");
 const asyncHandler = require("express-async-handler");
 const router = express.Router();
-const Order = require("./order"); // Assuming order.js is in the same directory
+const Order = require("../model/order");
+const OrderCleanupService = require("../services/orderCleanup");
 
 // Get all orders
 router.get(
@@ -107,6 +108,8 @@ router.post(
       totalPrice,
       shippingAddress,
       paymentMethod,
+      deliveryMethod,
+      selectedStore,
       couponCode,
       orderTotal,
       trackingUrl,
@@ -117,12 +120,30 @@ router.post(
       !items ||
       !totalPrice ||
       !shippingAddress ||
-      !paymentMethod
+      !paymentMethod ||
+      !deliveryMethod
     ) {
       return res.status(400).json({
         success: false,
         message:
-          "User ID, items, total price, shipping address, and payment method are required.",
+          "User ID, items, total price, shipping address, payment method, and delivery method are required.",
+      });
+    }
+
+    // Validate delivery method
+    if (!["homeDelivery", "storeDelivery"].includes(deliveryMethod)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Delivery method must be either 'homeDelivery' or 'storeDelivery'.",
+      });
+    }
+
+    // If store delivery, validate selected store
+    if (deliveryMethod === "storeDelivery" && !selectedStore) {
+      return res.status(400).json({
+        success: false,
+        message: "Selected store information is required for store delivery.",
       });
     }
 
@@ -174,19 +195,49 @@ router.post(
     }
 
     try {
+      // Calculate delivery fee based on delivery method
+      let deliveryFee = 0;
+      if (deliveryMethod === "homeDelivery") {
+        deliveryFee = 150;
+      } else if (deliveryMethod === "storeDelivery") {
+        deliveryFee = 100;
+      }
+
+      // Calculate subtotal from items
+      const subtotal = items.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      );
+
+      // Calculate tax (10%)
+      const tax = Math.round(subtotal * 0.1);
+
+      // Calculate discount (if coupon applied)
+      const discount = orderTotal?.discount || 0;
+
+      // Calculate final total
+      const finalTotal = subtotal + deliveryFee + tax - discount;
+
+      const calculatedOrderTotal = {
+        subtotal: subtotal,
+        deliveryFee: deliveryFee,
+        tax: tax,
+        discount: discount,
+        total: finalTotal,
+      };
+
       const newOrder = new Order({
         userID,
         orderStatus: orderStatus || "pending",
         items,
-        totalPrice,
+        totalPrice: finalTotal,
         shippingAddress,
         paymentMethod,
+        deliveryMethod,
+        selectedStore:
+          deliveryMethod === "storeDelivery" ? selectedStore : null,
         couponCode: couponCode || null,
-        orderTotal: orderTotal || {
-          subtotal: totalPrice,
-          discount: 0,
-          total: totalPrice,
-        },
+        orderTotal: calculatedOrderTotal,
         trackingUrl: trackingUrl || null,
       });
 
@@ -217,8 +268,14 @@ router.put(
   asyncHandler(async (req, res) => {
     try {
       const orderID = req.params.id;
-      const { orderStatus, trackingUrl, shippingAddress, paymentMethod } =
-        req.body;
+      const {
+        orderStatus,
+        trackingUrl,
+        shippingAddress,
+        paymentMethod,
+        deliveryMethod,
+        selectedStore,
+      } = req.body;
 
       const order = await Order.findById(orderID);
       if (!order) {
@@ -256,6 +313,46 @@ router.put(
         };
       }
       if (paymentMethod) order.paymentMethod = paymentMethod;
+      if (deliveryMethod) {
+        // Validate delivery method
+        if (!["homeDelivery", "storeDelivery"].includes(deliveryMethod)) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Delivery method must be either 'homeDelivery' or 'storeDelivery'.",
+          });
+        }
+
+        order.deliveryMethod = deliveryMethod;
+
+        // Update delivery fee and recalculate total
+        let newDeliveryFee = 0;
+        if (deliveryMethod === "homeDelivery") {
+          newDeliveryFee = 150;
+          order.selectedStore = null; // Clear store info for home delivery
+        } else if (deliveryMethod === "storeDelivery") {
+          newDeliveryFee = 100;
+          if (selectedStore) {
+            order.selectedStore = selectedStore;
+          }
+        }
+
+        // Recalculate order total
+        const subtotal = order.orderTotal?.subtotal || order.totalPrice;
+        const tax = order.orderTotal?.tax || Math.round(subtotal * 0.1);
+        const discount = order.orderTotal?.discount || 0;
+        const newTotal = subtotal + newDeliveryFee + tax - discount;
+
+        order.orderTotal = {
+          ...order.orderTotal,
+          deliveryFee: newDeliveryFee,
+          total: newTotal,
+        };
+        order.totalPrice = newTotal;
+      }
+      if (selectedStore && order.deliveryMethod === "storeDelivery") {
+        order.selectedStore = selectedStore;
+      }
 
       const updatedOrder = await order.save();
 
@@ -284,7 +381,7 @@ router.patch(
   asyncHandler(async (req, res) => {
     try {
       const orderID = req.params.id;
-      const { orderStatus } = req.body;
+      const { orderStatus, cancellationReason } = req.body;
 
       if (!orderStatus) {
         return res
@@ -308,11 +405,20 @@ router.patch(
         });
       }
 
-      const order = await Order.findByIdAndUpdate(
-        orderID,
-        { orderStatus },
-        { new: true }
-      )
+      // Prepare update data
+      const updateData = { orderStatus };
+
+      // If cancelling, add cancellation details
+      if (orderStatus === "cancelled") {
+        updateData.cancelledAt = new Date();
+        if (cancellationReason) {
+          updateData.cancellationReason = cancellationReason;
+        }
+      }
+
+      const order = await Order.findByIdAndUpdate(orderID, updateData, {
+        new: true,
+      })
         .populate("couponCode", "couponCode discountType discountAmount")
         .populate("userID", "name email")
         .populate("items.productID", "name images");
@@ -325,7 +431,9 @@ router.patch(
 
       res.json({
         success: true,
-        message: "Order status updated successfully.",
+        message: `Order ${
+          orderStatus === "cancelled" ? "cancelled" : "status updated"
+        } successfully.`,
         data: order,
       });
     } catch (error) {
@@ -425,6 +533,53 @@ router.get(
       });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
+    }
+  })
+);
+
+// Cleanup cancelled orders (Admin only - you might want to add authentication middleware)
+router.post(
+  "/cleanup/cancelled",
+  asyncHandler(async (req, res) => {
+    try {
+      const { daysOld = 5 } = req.body;
+
+      const result = await OrderCleanupService.removeCancelledOrders(daysOld);
+
+      res.json({
+        success: result.success,
+        message: result.message,
+        data: {
+          removedCount: result.removedCount,
+          removedOrders: result.removedOrders,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: `Cleanup failed: ${error.message}`,
+      });
+    }
+  })
+);
+
+// Get cancelled orders statistics
+router.get(
+  "/stats/cancelled",
+  asyncHandler(async (req, res) => {
+    try {
+      const stats = await OrderCleanupService.getCancelledOrdersStats();
+
+      res.json({
+        success: true,
+        message: "Cancelled orders statistics retrieved successfully.",
+        data: stats,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: `Failed to get stats: ${error.message}`,
+      });
     }
   })
 );

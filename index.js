@@ -7,6 +7,7 @@ const dotenv = require("dotenv");
 const {
   startNotificationCleanupScheduler,
 } = require("./services/notificationCleanup");
+const OrderCleanupService = require("./services/orderCleanup");
 
 // Load environment variables
 dotenv.config();
@@ -190,10 +191,13 @@ if (process.env.NODE_ENV !== "production") {
     console.log(`Server is running on port ${PORT}`);
     // Start the notification cleanup scheduler
     startNotificationCleanupScheduler();
+    // Start the order cleanup scheduler (runs every 24 hours, removes orders older than 5 days)
+    OrderCleanupService.scheduleCleanup(24, 5);
   });
 } else {
-  // In production, start the scheduler immediately
+  // In production, start the schedulers immediately
   startNotificationCleanupScheduler();
+  OrderCleanupService.scheduleCleanup(24, 5);
 }
 
 // Export the Express app for Vercel

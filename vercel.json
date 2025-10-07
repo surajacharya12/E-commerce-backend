@@ -6,10 +6,18 @@
       "use": "@vercel/node"
     }
   ],
-  "route": [
+  "routes": [
     {
       "src": "/(.*)",
       "dest": "/index.js"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "functions": {
+    "index.js": {
+      "maxDuration": 30
+    }
+  }
 }

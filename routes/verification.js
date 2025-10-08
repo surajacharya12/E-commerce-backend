@@ -8,10 +8,11 @@ const nodemailer = require("nodemailer");
 const verificationCodes = new Map();
 
 // Email transporter configuration
-const createTransporter = () => {
+// nodemailer provides createTransport
+const createTransport = () => {
   // Check if custom SMTP settings are provided
   if (process.env.EMAIL_HOST) {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
       port: process.env.EMAIL_PORT || 587,
       secure: process.env.EMAIL_SECURE === "true",
@@ -23,7 +24,7 @@ const createTransporter = () => {
   }
 
   // Default to Gmail
-  return nodemailer.createTransporter({
+  return nodemailer.createTransport({
     service: process.env.EMAIL_SERVICE || "gmail",
     auth: {
       user: process.env.EMAIL_USER || "your-email@gmail.com",
@@ -78,8 +79,8 @@ router.post(
     });
 
     try {
-      // Send email
-      const transporter = createTransporter();
+  // Send email
+  const transporter = createTransport();
 
       const mailOptions = {
         from: process.env.EMAIL_USER || "noreply@shopease.com",

@@ -152,6 +152,27 @@ ONE_SIGNAL_APP_ID=your-onesignal-id
 ONE_SIGNAL_REST_API_KEY=your-onesignal-key
 ```
 
+## ⚠️ Remove secrets from repo
+
+If you accidentally committed `.env.production` with real secrets, remove it from the repository and purge history:
+
+1. Remove file from git but keep locally:
+
+```bash
+git rm --cached .env.production
+git commit -m "chore: remove .env.production from repo"
+```
+
+2. (Optional/Advanced) Purge secrets from git history using `git filter-repo` or BFG. Example with BFG:
+
+```bash
+# Install BFG, then:
+bfg --delete-files .env.production
+git reflog expire --expire=now --all && git gc --prune=now --aggressive
+```
+
+3. Add secrets to your deployment platform (Vercel/Heroku) instead of committing them.
+
 ## 🔄 Update Frontend URLs
 
 ### **Dashboard API URL**

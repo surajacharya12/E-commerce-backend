@@ -98,7 +98,10 @@ const orderSchema = new mongoose.Schema(
       subtotal: Number,
       discount: Number,
       deliveryFee: Number,
-      tax: Number,
+      tax: {
+        type: Number,
+        default: 0,
+      },
       total: Number,
     },
     trackingUrl: {

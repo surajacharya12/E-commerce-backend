@@ -209,19 +209,19 @@ router.post(
         0
       );
 
-      // Calculate tax (10%)
-      const tax = Math.round(subtotal * 0.1);
+      // No tax applied server-side anymore. Keep field for compatibility and set to 0.
+      const tax = 0;
 
       // Calculate discount (if coupon applied)
       const discount = orderTotal?.discount || 0;
 
-      // Calculate final total
-      const finalTotal = subtotal + deliveryFee + tax - discount;
+      // Calculate final total (exclude tax)
+      const finalTotal = subtotal + deliveryFee - discount;
 
       const calculatedOrderTotal = {
         subtotal: subtotal,
         deliveryFee: deliveryFee,
-        tax: tax,
+        tax: tax, // kept for backward compatibility (always 0)
         discount: discount,
         total: finalTotal,
       };
@@ -337,15 +337,15 @@ router.put(
           }
         }
 
-        // Recalculate order total
+        // Recalculate order total (exclude tax)
         const subtotal = order.orderTotal?.subtotal || order.totalPrice;
-        const tax = order.orderTotal?.tax || Math.round(subtotal * 0.1);
         const discount = order.orderTotal?.discount || 0;
-        const newTotal = subtotal + newDeliveryFee + tax - discount;
+        const newTotal = subtotal + newDeliveryFee - discount;
 
         order.orderTotal = {
           ...order.orderTotal,
           deliveryFee: newDeliveryFee,
+          tax: 0, // ensure tax remains 0 for compatibility
           total: newTotal,
         };
         order.totalPrice = newTotal;

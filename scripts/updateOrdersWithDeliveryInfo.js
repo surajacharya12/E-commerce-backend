@@ -55,14 +55,14 @@ const updateOrdersWithDeliveryInfo = async () => {
           );
         }
 
-        // Calculate tax (10%)
-        const tax = Math.round(subtotal * 0.1);
+        // No tax applied anymore. Keep tax field for compatibility and set to 0.
+        const tax = 0;
 
         // Get existing discount
         const discount = order.orderTotal?.discount || 0;
 
-        // Calculate new total
-        const newTotal = subtotal + deliveryFee + tax - discount;
+        // Calculate new total (exclude tax)
+        const newTotal = subtotal + deliveryFee - discount;
 
         // Update order total
         order.orderTotal = {

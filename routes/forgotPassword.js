@@ -8,7 +8,8 @@ const nodemailer = require("nodemailer");
 const verificationCodes = new Map();
 
 // Email transporter configuration with better error handling
-const createTransporter = () => {
+// Note: nodemailer exports createTransport, not createTransporter
+const createTransport = () => {
   try {
     // Check if email credentials are provided
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
@@ -18,7 +19,7 @@ const createTransporter = () => {
 
     // Check if custom SMTP settings are provided
     if (process.env.EMAIL_HOST) {
-      return nodemailer.createTransporter({
+      return nodemailer.createTransport({
         host: process.env.EMAIL_HOST,
         port: process.env.EMAIL_PORT || 587,
         secure: process.env.EMAIL_SECURE === "true",
@@ -30,7 +31,7 @@ const createTransporter = () => {
     }
 
     // Default to Gmail with better configuration
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       service: "gmail",
       auth: {
         user: process.env.EMAIL_USER,
@@ -49,7 +50,7 @@ const createTransporter = () => {
 // Test email configuration
 const testEmailConfig = async () => {
   try {
-    const transporter = createTransporter();
+  const transporter = createTransport();
     if (!transporter) return false;
 
     await transporter.verify();
@@ -112,7 +113,7 @@ router.post(
     });
 
     // Check if email is configured
-    const transporter = createTransporter();
+  const transporter = createTransport();
     if (!transporter) {
       // For development/testing - log the code but don't send email
       console.log("🧪 Development mode: Email not configured");

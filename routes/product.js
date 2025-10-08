@@ -64,6 +64,7 @@ async function createProductHelper(productData, imageUrls = []) {
     stock,
     price,
     offerPrice,
+    points,
     proCategoryId,
     proSubCategoryId,
     proBrandId,
@@ -88,6 +89,10 @@ async function createProductHelper(productData, imageUrls = []) {
     stock: stockValue,
     price: parseFloat(price),
     offerPrice: offerPrice ? parseFloat(offerPrice) : undefined,
+    // Accept points as array or JSON string
+    points: typeof points === 'string' ? (() => {
+      try { return JSON.parse(points); } catch (e) { return points.split('\n').map(p => p.trim()).filter(Boolean); }
+    })() : (Array.isArray(points) ? points : []),
     proCategoryId,
     proSubCategoryId,
     proBrandId: proBrandId || undefined,
@@ -210,6 +215,7 @@ router.put(
             proVariantTypeId,
             proVariantId,
             adminRating,
+            points,
           } = req.body;
 
           // Update product properties
@@ -237,6 +243,18 @@ router.put(
           if (proVariantTypeId)
             productToUpdate.proVariantTypeId = proVariantTypeId;
           if (proVariantId) productToUpdate.proVariantId = proVariantId;
+          // Update points (accept JSON string or newline-separated string)
+          if (points !== undefined) {
+            if (typeof points === 'string') {
+              try {
+                productToUpdate.points = JSON.parse(points);
+              } catch (e) {
+                productToUpdate.points = points.split('\n').map(p => p.trim()).filter(Boolean);
+              }
+            } else if (Array.isArray(points)) {
+              productToUpdate.points = points;
+            }
+          }
 
           // Update admin rating and recalculate average
           if (adminRating !== undefined) {
@@ -308,6 +326,7 @@ router.put(
           proVariantTypeId,
           proVariantId,
           adminRating,
+          points,
         } = req.body;
 
         // Update product properties
@@ -335,6 +354,19 @@ router.put(
         if (proVariantTypeId)
           productToUpdate.proVariantTypeId = proVariantTypeId;
         if (proVariantId) productToUpdate.proVariantId = proVariantId;
+
+        // Update points (accept JSON string or newline-separated string)
+        if (points !== undefined) {
+          if (typeof points === 'string') {
+            try {
+              productToUpdate.points = JSON.parse(points);
+            } catch (e) {
+              productToUpdate.points = points.split('\n').map(p => p.trim()).filter(Boolean);
+            }
+          } else if (Array.isArray(points)) {
+            productToUpdate.points = points;
+          }
+        }
 
         // Update admin rating and recalculate average
         if (adminRating !== undefined) {

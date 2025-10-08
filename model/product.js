@@ -87,6 +87,13 @@ const productSchema = new mongoose.Schema(
         },
       },
     ],
+    // Short bullet points / highlights about the product
+    points: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
   },
   { timestamps: true }
 );

@@ -155,8 +155,20 @@ class OrderCleanupService {
       `⏰ Scheduling cancelled orders cleanup every ${intervalHours} hours`
     );
 
-    // Run immediately on startup
-    this.removeCancelledOrders(daysOld);
+    // Run immediately on startup (only if mongoose is connected)
+    try {
+      const mongoose = require("mongoose");
+      if (mongoose.connection && mongoose.connection.readyState === 1) {
+        this.removeCancelledOrders(daysOld);
+      } else {
+        console.warn(
+          "⚠️  Mongoose not connected yet — skipping immediate cancelled orders cleanup"
+        );
+      }
+    } catch (err) {
+      // If require fails for some reason, just log and continue scheduling
+      console.warn("⚠️  Could not check mongoose connection state:", err.message);
+    }
 
     // Schedule recurring cleanup
     setInterval(async () => {

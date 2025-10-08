@@ -14,23 +14,11 @@ dotenv.config();
 
 const app = express();
 
-// Production-ready CORS configuration
-const corsOptions = {
-  origin:
-    process.env.NODE_ENV === "production"
-      ? [process.env.FRONTEND_URL, "https://your-dashboard-domain.vercel.app"]
-      : "*",
-  credentials: true,
-  optionsSuccessStatus: 200,
-};
+const PORT = process.env.PORT || 3001;
 
-app.use(cors(corsOptions));
-
-// Body parsing middleware with limits
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ extended: true, limit: "10mb" }));
 
-// Security headers
 app.use((req, res, next) => {
   res.header("X-Content-Type-Options", "nosniff");
   res.header("X-Frame-Options", "DENY");
@@ -38,37 +26,82 @@ app.use((req, res, next) => {
   next();
 });
 
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+app.use(cors(corsOptions));
+
 app.use("/image/products", express.static("public/products"));
 app.use("/image/category", express.static("public/category"));
 app.use("/image/poster", express.static("public/posters"));
 
-// MongoDB connection with production optimizations
 const URL = process.env.MONGO_URL;
 const mongoOptions = {
-  maxPoolSize: 10, // Maintain up to 10 socket connections
-  serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
-  socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-  bufferCommands: false, // Disable mongoose buffering
-  // Removed deprecated options: useNewUrlParser, useUnifiedTopology, bufferMaxEntries
+  maxPoolSize: 10, 
+  serverSelectionTimeoutMS: 5000, 
+  socketTimeoutMS: 45000, 
+  bufferCommands: false, 
 };
 
-// Connect to MongoDB with error handling
 const connectDB = async () => {
   try {
     await mongoose.connect(URL, mongoOptions);
     console.log("Connected to Database successfully");
+    return true;
   } catch (error) {
     console.error("MongoDB connection error:", error);
-    // In production, you might want to retry or exit
     if (process.env.NODE_ENV === "production") {
       console.error("Failed to connect to database in production");
       process.exit(1);
     }
+    return false;
   }
 };
 
-// Initialize database connection
-connectDB();
+// Initialize database connection and start app
+const start = async () => {
+  const connected = await connectDB();
+
+  const startSchedulers = () => {
+    startNotificationCleanupScheduler();
+    OrderCleanupService.scheduleCleanup(24, 5);
+  };
+
+  if (process.env.NODE_ENV === "production") {
+    if (!connected) {
+      console.error("Failed to connect to DB in production. Exiting.");
+      process.exit(1);
+    }
+    startSchedulers();
+  }
+
+  const server = app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+    if (connected) {
+      if (process.env.NODE_ENV !== "production") {
+        startSchedulers();
+      }
+    } else {
+      console.warn("⚠️  Database not connected; schedulers will not start.");
+    }
+  });
+
+  server.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`Port ${PORT} is already in use. Make sure no other process is listening on this port.`);
+    } else {
+      console.error("Server error:", err);
+    }
+    process.exit(1);
+  });
+};
+
+// Start server only when this file is run directly (not when required/imported)
+if (require.main === module) {
+  start();
+}
 
 const db = mongoose.connection;
 db.on("error", (error) => {
@@ -77,7 +110,6 @@ db.on("error", (error) => {
 
 db.on("disconnected", () => {
   console.log("MongoDB disconnected");
-  // Attempt to reconnect in production
   if (process.env.NODE_ENV === "production") {
     setTimeout(connectDB, 5000);
   }
@@ -87,7 +119,6 @@ db.on("reconnected", () => {
   console.log("MongoDB reconnected");
 });
 
-// Graceful shutdown
 process.on("SIGINT", async () => {
   try {
     await mongoose.connection.close();
@@ -183,22 +214,5 @@ app.use("*", (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 3001;
-
-// For Vercel deployment, we export the app instead of listening
-if (process.env.NODE_ENV !== "production") {
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-    // Start the notification cleanup scheduler
-    startNotificationCleanupScheduler();
-    // Start the order cleanup scheduler (runs every 24 hours, removes orders older than 5 days)
-    OrderCleanupService.scheduleCleanup(24, 5);
-  });
-} else {
-  // In production, start the schedulers immediately
-  startNotificationCleanupScheduler();
-  OrderCleanupService.scheduleCleanup(24, 5);
-}
-
-// Export the Express app for Vercel
+// Export the Express app for Vercel or other serverless platforms
 module.exports = app;

@@ -60,7 +60,6 @@ const connectDB = async () => {
   }
 };
 
-// Initialize database connection and start app
 const start = async () => {
   const connected = await connectDB();
 
@@ -98,7 +97,6 @@ const start = async () => {
   });
 };
 
-// Start server only when this file is run directly (not when required/imported)
 if (require.main === module) {
   start();
 }
@@ -151,21 +149,19 @@ app.use("/ratings", require("./routes/rating"));
 app.use("/chats", require("./routes/chat"));
 app.use("/cart", require("./routes/cart"));
 
-// Health check endpoint
+// 🌟 Fixed Root Route — Send plain text instead of JSON
 app.get(
   "/",
   asyncHandler(async (req, res) => {
-    res.json({
-      success: true,
-      message: "API working successfully",
-      environment: process.env.NODE_ENV || "development",
-      timestamp: new Date().toISOString(),
-      data: null,
-    });
+    res.type("text/plain").send(
+      `API working successfully
+Environment: ${process.env.NODE_ENV || "development"}
+Timestamp: ${new Date().toISOString()}`
+    );
   })
 );
 
-// Health check endpoint for monitoring
+// Health check endpoint
 app.get(
   "/health",
   asyncHandler(async (req, res) => {
@@ -192,7 +188,6 @@ app.use((error, req, res, next) => {
     timestamp: new Date().toISOString(),
   });
 
-  // Don't leak error details in production
   const message =
     process.env.NODE_ENV === "production"
       ? "Something went wrong!"
@@ -207,12 +202,7 @@ app.use((error, req, res, next) => {
 
 // Handle 404 routes
 app.use("*", (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: "Route not found",
-    path: req.originalUrl,
-  });
+  res.status(404).send("Route not found");
 });
 
-// Export the Express app for Vercel or other serverless platforms
 module.exports = app;

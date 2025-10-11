@@ -27,9 +27,9 @@ app.use((req, res, next) => {
 });
 
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || '*',
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  origin: process.env.CORS_ORIGIN || "*",
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 };
 app.use(cors(corsOptions));
 
@@ -39,10 +39,10 @@ app.use("/image/poster", express.static("public/posters"));
 
 const URL = process.env.MONGO_URL;
 const mongoOptions = {
-  maxPoolSize: 10, 
-  serverSelectionTimeoutMS: 5000, 
-  socketTimeoutMS: 45000, 
-  bufferCommands: false, 
+  maxPoolSize: 10,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+  bufferCommands: false,
 };
 
 const connectDB = async () => {
@@ -60,6 +60,7 @@ const connectDB = async () => {
   }
 };
 
+// Initialize database connection and start app
 const start = async () => {
   const connected = await connectDB();
 
@@ -89,7 +90,9 @@ const start = async () => {
 
   server.on("error", (err) => {
     if (err.code === "EADDRINUSE") {
-      console.error(`Port ${PORT} is already in use. Make sure no other process is listening on this port.`);
+      console.error(
+        `Port ${PORT} is already in use. Make sure no other process is listening on this port.`
+      );
     } else {
       console.error("Server error:", err);
     }
@@ -97,6 +100,7 @@ const start = async () => {
   });
 };
 
+// Start server only when this file is run directly (not when required/imported)
 if (require.main === module) {
   start();
 }
@@ -149,19 +153,21 @@ app.use("/ratings", require("./routes/rating"));
 app.use("/chats", require("./routes/chat"));
 app.use("/cart", require("./routes/cart"));
 
-// 🌟 Fixed Root Route — Send plain text instead of JSON
+// Health check endpoint
 app.get(
   "/",
   asyncHandler(async (req, res) => {
-    res.type("text/plain").send(
-      `API working successfully
-Environment: ${process.env.NODE_ENV || "development"}
-Timestamp: ${new Date().toISOString()}`
-    );
+    res.json({
+      success: true,
+      message: "API working successfully",
+      environment: process.env.NODE_ENV || "development",
+      timestamp: new Date().toISOString(),
+      data: null,
+    });
   })
 );
 
-// Health check endpoint
+// Health check endpoint for monitoring
 app.get(
   "/health",
   asyncHandler(async (req, res) => {
@@ -188,6 +194,7 @@ app.use((error, req, res, next) => {
     timestamp: new Date().toISOString(),
   });
 
+  // Don't leak error details in production
   const message =
     process.env.NODE_ENV === "production"
       ? "Something went wrong!"
@@ -202,7 +209,12 @@ app.use((error, req, res, next) => {
 
 // Handle 404 routes
 app.use("*", (req, res) => {
-  res.status(404).send("Route not found");
+  res.status(404).json({
+    success: false,
+    message: "Route not found",
+    path: req.originalUrl,
+  });
 });
 
+// Export the Express app for Vercel or other serverless platforms
 module.exports = app;

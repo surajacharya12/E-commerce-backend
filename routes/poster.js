@@ -52,7 +52,6 @@ router.post(
     const contentType = req.get("Content-Type");
 
     if (contentType && contentType.includes("multipart/form-data")) {
-      // Handle multipart form data with image
       posterUpload.single("img")(req, res, async function (err) {
         if (err instanceof multer.MulterError) {
           if (err.code === "LIMIT_FILE_SIZE") {
@@ -63,7 +62,7 @@ router.post(
           return res.json({ success: false, message: err.message });
         }
 
-        const { posterName } = req.body;
+        const { posterName, subText } = req.body;
         let imageUrl = "no_url";
 
         if (req.file) {
@@ -78,8 +77,9 @@ router.post(
 
         try {
           const newPoster = new Poster({
-            posterName: posterName,
-            imageUrl: imageUrl,
+            posterName,
+            subText,
+            imageUrl,
           });
           await newPoster.save();
           res.json({
@@ -93,9 +93,8 @@ router.post(
         }
       });
     } else {
-      // Handle JSON data (no image)
       try {
-        const { posterName, imageUrl } = req.body;
+        const { posterName, subText, imageUrl } = req.body;
 
         if (!posterName) {
           return res
@@ -104,7 +103,8 @@ router.post(
         }
 
         const newPoster = new Poster({
-          posterName: posterName,
+          posterName,
+          subText,
           imageUrl: imageUrl || "no_url",
         });
         await newPoster.save();
@@ -129,7 +129,6 @@ router.put(
     const contentType = req.get("Content-Type");
 
     if (contentType && contentType.includes("multipart/form-data")) {
-      // Handle multipart form data with image
       posterUpload.single("img")(req, res, async function (err) {
         if (err instanceof multer.MulterError) {
           if (err.code === "LIMIT_FILE_SIZE") {
@@ -148,12 +147,12 @@ router.put(
               .json({ success: false, message: "Poster not found." });
           }
 
-          const { posterName } = req.body;
+          const { posterName, subText } = req.body;
 
           if (posterName) poster.posterName = posterName;
+          if (subText !== undefined) poster.subText = subText;
 
           if (req.file) {
-            // Delete old image from Cloudinary if it exists
             if (poster.imageUrl && poster.imageUrl !== "no_url") {
               try {
                 const publicId = poster.imageUrl.split("/").pop().split(".")[0];
@@ -161,13 +160,10 @@ router.put(
                   `online_store/posters/${publicId}`
                 );
               } catch (cloudinaryError) {
-                console.log(
-                  "Error deleting old poster image:",
-                  cloudinaryError
-                );
+                console.log("Error deleting old poster image:", cloudinaryError);
               }
             }
-            poster.imageUrl = req.file.path; // Cloudinary URL
+            poster.imageUrl = req.file.path;
           }
 
           await poster.save();
@@ -181,7 +177,6 @@ router.put(
         }
       });
     } else {
-      // Handle JSON data
       try {
         const poster = await Poster.findById(posterID);
         if (!poster) {
@@ -190,9 +185,10 @@ router.put(
             .json({ success: false, message: "Poster not found." });
         }
 
-        const { posterName, imageUrl } = req.body;
+        const { posterName, subText, imageUrl } = req.body;
 
         if (posterName) poster.posterName = posterName;
+        if (subText !== undefined) poster.subText = subText;
         if (imageUrl) poster.imageUrl = imageUrl;
 
         await poster.save();
@@ -221,7 +217,6 @@ router.delete(
           .json({ success: false, message: "Poster not found." });
       }
 
-      // Delete image from Cloudinary if it exists
       if (poster.imageUrl && poster.imageUrl !== "no_url") {
         try {
           const publicId = poster.imageUrl.split("/").pop().split(".")[0];

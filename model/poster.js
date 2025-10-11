@@ -6,6 +6,11 @@ const posterSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  subText: {
+    type: String,
+    trim: true,
+    default: ""
+  },
   imageUrl: {
     type: String,
     required: true

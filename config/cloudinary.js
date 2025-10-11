@@ -64,6 +64,11 @@ const subcategoryUpload = multer({
   storage: createCloudinaryStorage("online_store/subcategories"),
   limits: { fileSize: 5 * 1024 * 1024 },
 });
+
+const userUpload = multer({
+  storage: createCloudinaryStorage("online_store/users"),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
 module.exports = {
   cloudinary,
   productUpload,
@@ -74,4 +79,5 @@ module.exports = {
   discountUpload,
   notificationUpload,
   subcategoryUpload,
+  userUpload,
 };

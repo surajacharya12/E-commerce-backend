@@ -1,9 +1,9 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-const mongoose = require("mongoose");
 const asyncHandler = require("express-async-handler");
 const dotenv = require("dotenv");
+const connectDB = require("./utils/db");
 const {
   startNotificationCleanupScheduler,
 } = require("./services/notificationCleanup");
@@ -15,11 +15,11 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// --- Middleware ---
+// Middleware
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ extended: true, limit: "10mb" }));
 
-// Basic security headers
+// Security headers
 app.use((req, res, next) => {
   res.header("X-Content-Type-Options", "nosniff");
   res.header("X-Frame-Options", "DENY");
@@ -27,7 +27,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS setup
+// CORS
 const corsOptions = {
   origin: process.env.CORS_ORIGIN || "*",
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -40,98 +40,7 @@ app.use("/image/products", express.static("public/products"));
 app.use("/image/category", express.static("public/category"));
 app.use("/image/poster", express.static("public/posters"));
 
-// --- Database Connection ---
-const URL = process.env.MONGO_URL;
-const mongoOptions = {
-  maxPoolSize: 10,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-  bufferCommands: false,
-};
-
-const connectDB = async () => {
-  try {
-    await mongoose.connect(URL, mongoOptions);
-    console.log("✅ Connected to Database successfully");
-    return true;
-  } catch (error) {
-    console.error("❌ MongoDB connection error:", error);
-    if (process.env.NODE_ENV === "production") {
-      console.error("Failed to connect to database in production");
-      process.exit(1);
-    }
-    return false;
-  }
-};
-
-// --- Initialize and Start ---
-const start = async () => {
-  const connected = await connectDB();
-
-  const startSchedulers = () => {
-    startNotificationCleanupScheduler();
-    OrderCleanupService.scheduleCleanup(24, 5);
-  };
-
-  if (process.env.NODE_ENV === "production") {
-    if (!connected) {
-      console.error("Failed to connect to DB in production. Exiting.");
-      process.exit(1);
-    }
-    startSchedulers();
-  }
-
-  const server = app.listen(PORT, () => {
-    console.log(`🚀 Server is running on port ${PORT}`);
-    if (connected) {
-      if (process.env.NODE_ENV !== "production") {
-        startSchedulers();
-      }
-    } else {
-      console.warn("⚠️ Database not connected; schedulers will not start.");
-    }
-  });
-
-  server.on("error", (err) => {
-    if (err.code === "EADDRINUSE") {
-      console.error(
-        `Port ${PORT} is already in use. Make sure no other process is listening on this port.`
-      );
-    } else {
-      console.error("Server error:", err);
-    }
-    process.exit(1);
-  });
-};
-
-// Start only when run directly (not imported)
-if (require.main === module) {
-  start();
-}
-
-// --- MongoDB Event Listeners ---
-const db = mongoose.connection;
-db.on("error", (error) => console.error("MongoDB connection error:", error));
-db.on("disconnected", () => {
-  console.log("⚠️ MongoDB disconnected");
-  if (process.env.NODE_ENV === "production") {
-    setTimeout(connectDB, 5000);
-  }
-});
-db.on("reconnected", () => console.log("✅ MongoDB reconnected"));
-
-process.on("SIGINT", async () => {
-  try {
-    await mongoose.connection.close();
-    console.log("MongoDB connection closed gracefully");
-    process.exit(0);
-  } catch (error) {
-    console.error("Error during graceful shutdown:", error);
-    process.exit(1);
-  }
-});
-
-// --- Routes ---
+// Routes
 app.use("/categories", require("./routes/category"));
 app.use("/subCategories", require("./routes/subCategory"));
 app.use("/brands", require("./routes/brand"));
@@ -153,7 +62,7 @@ app.use("/ratings", require("./routes/rating"));
 app.use("/chats", require("./routes/chat"));
 app.use("/cart", require("./routes/cart"));
 
-// --- Health Check Routes ---
+// Health check endpoint
 app.get(
   "/",
   asyncHandler(async (req, res) => {
@@ -167,31 +76,24 @@ app.get(
   })
 );
 
+// Monitoring health endpoint
 app.get(
   "/health",
   asyncHandler(async (req, res) => {
-    const healthCheck = {
+    res.status(200).json({
       uptime: process.uptime(),
       message: "OK",
       timestamp: new Date().toISOString(),
       database:
-        mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+        require("mongoose").connection.readyState === 1
+          ? "connected"
+          : "disconnected",
       environment: process.env.NODE_ENV || "development",
-    };
-    res.status(200).json(healthCheck);
+    });
   })
 );
 
-// --- Catch-all 404 (Vercel-friendly) ---
-app.all("*", (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: "Route not found",
-    path: req.originalUrl,
-  });
-});
-
-// --- Global Error Handler ---
+// Error handling
 app.use((err, req, res, next) => {
   console.error("❌ Error occurred:", {
     message: err.message,
@@ -201,7 +103,6 @@ app.use((err, req, res, next) => {
     timestamp: new Date().toISOString(),
   });
 
-  // Prevent Express-async-handler or runtime from masking 404s
   if (err.status === 404 || err.name === "NotFoundError") {
     return res.status(404).json({
       success: false,
@@ -218,5 +119,30 @@ app.use((err, req, res, next) => {
   });
 });
 
-// --- Export for Vercel ---
+// Handle 404 (any unmatched route)
+app.use("*", (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found",
+    path: req.originalUrl,
+  });
+});
+
+// Start schedulers (only when connected)
+connectDB(process.env.MONGO_URL).then(() => {
+  if (process.env.NODE_ENV === "production") {
+    startNotificationCleanupScheduler();
+    OrderCleanupService.scheduleCleanup(24, 5);
+  }
+  console.log("✅ Schedulers started (if in production)");
+});
+
+// Export app for Vercel
 module.exports = app;
+
+// Local development mode
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
+}

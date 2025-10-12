@@ -13,12 +13,13 @@ const OrderCleanupService = require("./services/orderCleanup");
 dotenv.config();
 
 const app = express();
-
 const PORT = process.env.PORT || 3001;
 
+// --- Middleware ---
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ extended: true, limit: "10mb" }));
 
+// Basic security headers
 app.use((req, res, next) => {
   res.header("X-Content-Type-Options", "nosniff");
   res.header("X-Frame-Options", "DENY");
@@ -26,6 +27,7 @@ app.use((req, res, next) => {
   next();
 });
 
+// CORS setup
 const corsOptions = {
   origin: process.env.CORS_ORIGIN || "*",
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -33,10 +35,12 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+// Static file serving
 app.use("/image/products", express.static("public/products"));
 app.use("/image/category", express.static("public/category"));
 app.use("/image/poster", express.static("public/posters"));
 
+// --- Database Connection ---
 const URL = process.env.MONGO_URL;
 const mongoOptions = {
   maxPoolSize: 10,
@@ -48,10 +52,10 @@ const mongoOptions = {
 const connectDB = async () => {
   try {
     await mongoose.connect(URL, mongoOptions);
-    console.log("Connected to Database successfully");
+    console.log("✅ Connected to Database successfully");
     return true;
   } catch (error) {
-    console.error("MongoDB connection error:", error);
+    console.error("❌ MongoDB connection error:", error);
     if (process.env.NODE_ENV === "production") {
       console.error("Failed to connect to database in production");
       process.exit(1);
@@ -60,7 +64,7 @@ const connectDB = async () => {
   }
 };
 
-// Initialize database connection and start app
+// --- Initialize and Start ---
 const start = async () => {
   const connected = await connectDB();
 
@@ -78,13 +82,13 @@ const start = async () => {
   }
 
   const server = app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.log(`🚀 Server is running on port ${PORT}`);
     if (connected) {
       if (process.env.NODE_ENV !== "production") {
         startSchedulers();
       }
     } else {
-      console.warn("⚠️  Database not connected; schedulers will not start.");
+      console.warn("⚠️ Database not connected; schedulers will not start.");
     }
   });
 
@@ -100,31 +104,26 @@ const start = async () => {
   });
 };
 
-// Start server only when this file is run directly (not when required/imported)
+// Start only when run directly (not imported)
 if (require.main === module) {
   start();
 }
 
+// --- MongoDB Event Listeners ---
 const db = mongoose.connection;
-db.on("error", (error) => {
-  console.error("MongoDB connection error:", error);
-});
-
+db.on("error", (error) => console.error("MongoDB connection error:", error));
 db.on("disconnected", () => {
-  console.log("MongoDB disconnected");
+  console.log("⚠️ MongoDB disconnected");
   if (process.env.NODE_ENV === "production") {
     setTimeout(connectDB, 5000);
   }
 });
-
-db.on("reconnected", () => {
-  console.log("MongoDB reconnected");
-});
+db.on("reconnected", () => console.log("✅ MongoDB reconnected"));
 
 process.on("SIGINT", async () => {
   try {
     await mongoose.connection.close();
-    console.log("MongoDB connection closed through app termination");
+    console.log("MongoDB connection closed gracefully");
     process.exit(0);
   } catch (error) {
     console.error("Error during graceful shutdown:", error);
@@ -132,6 +131,7 @@ process.on("SIGINT", async () => {
   }
 });
 
+// --- Routes ---
 app.use("/categories", require("./routes/category"));
 app.use("/subCategories", require("./routes/subCategory"));
 app.use("/brands", require("./routes/brand"));
@@ -153,7 +153,7 @@ app.use("/ratings", require("./routes/rating"));
 app.use("/chats", require("./routes/chat"));
 app.use("/cart", require("./routes/cart"));
 
-// Health check endpoint
+// --- Health Check Routes ---
 app.get(
   "/",
   asyncHandler(async (req, res) => {
@@ -167,7 +167,6 @@ app.get(
   })
 );
 
-// Health check endpoint for monitoring
 app.get(
   "/health",
   asyncHandler(async (req, res) => {
@@ -179,35 +178,11 @@ app.get(
         mongoose.connection.readyState === 1 ? "connected" : "disconnected",
       environment: process.env.NODE_ENV || "development",
     };
-
     res.status(200).json(healthCheck);
   })
 );
 
-// Enhanced error handling middleware
-app.use((error, req, res, next) => {
-  console.error("Error occurred:", {
-    message: error.message,
-    stack: error.stack,
-    url: req.url,
-    method: req.method,
-    timestamp: new Date().toISOString(),
-  });
-
-  // Don't leak error details in production
-  const message =
-    process.env.NODE_ENV === "production"
-      ? "Something went wrong!"
-      : error.message;
-
-  res.status(error.status || 500).json({
-    success: false,
-    message: message,
-    ...(process.env.NODE_ENV !== "production" && { stack: error.stack }),
-  });
-});
-
-// Handle 404 routes
+// --- Handle 404 (MUST come before error handler) ---
 app.use("*", (req, res) => {
   res.status(404).json({
     success: false,
@@ -216,5 +191,23 @@ app.use("*", (req, res) => {
   });
 });
 
-// Export the Express app for Vercel or other serverless platforms
+// --- Global Error Handler (must be last) ---
+app.use((error, req, res, next) => {
+  console.error("❌ Error occurred:", {
+    message: error.message,
+    stack: error.stack,
+    url: req.url,
+    method: req.method,
+    timestamp: new Date().toISOString(),
+  });
+
+  const isProd = process.env.NODE_ENV === "production";
+  res.status(error.status || 500).json({
+    success: false,
+    message: isProd ? "Internal server error" : error.message,
+    ...(isProd ? {} : { stack: error.stack }),
+  });
+});
+
+// --- Export app for Vercel or serverless platforms ---
 module.exports = app;

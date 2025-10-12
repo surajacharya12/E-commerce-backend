@@ -72,17 +72,17 @@ router.post(
     });
 
     try {
-  // Send email
-  const transporter = createTransport();
+      // Send email
+      const transporter = createTransport();
 
       const mailOptions = {
-        from: process.env.EMAIL_USER || "noreply@shopease.com",
+        from: process.env.EMAIL_USER || "noreply@ShopSwift.com",
         to: email,
-        subject: "Password Reset Verification Code - ShopEase",
+        subject: "Password Reset Verification Code - ShopSwift",
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #4F46E5; margin: 0;">ShopEase</h1>
+              <h1 style="color: #4F46E5; margin: 0;">ShopSwift</h1>
               <p style="color: #6B7280; margin: 5px 0;">Password Reset Request</p>
             </div>
             
@@ -108,7 +108,7 @@ router.post(
                 If you didn't request this, please ignore this email.
               </p>
               <p style="color: #9CA3AF; font-size: 14px; margin: 5px 0 0 0;">
-                © 2024 ShopEase. All rights reserved.
+                © 2024 ShopSwift. All rights reserved.
               </p>
             </div>
           </div>

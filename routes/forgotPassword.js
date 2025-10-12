@@ -50,7 +50,7 @@ const createTransport = () => {
 // Test email configuration
 const testEmailConfig = async () => {
   try {
-  const transporter = createTransport();
+    const transporter = createTransport();
     if (!transporter) return false;
 
     await transporter.verify();
@@ -113,7 +113,7 @@ router.post(
     });
 
     // Check if email is configured
-  const transporter = createTransport();
+    const transporter = createTransport();
     if (!transporter) {
       // For development/testing - log the code but don't send email
       console.log("🧪 Development mode: Email not configured");
@@ -135,24 +135,24 @@ router.post(
 
       const mailOptions = {
         from: {
-          name: "ShopEase",
+          name: "ShopSwift",
           address: process.env.EMAIL_USER,
         },
         to: email,
-        subject: "🔐 Password Reset Code - ShopEase",
+        subject: "🔐 Password Reset Code - ShopSwift",
         html: `
           <!DOCTYPE html>
           <html>
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Password Reset - ShopEase</title>
+            <title>Password Reset - ShopSwift</title>
           </head>
           <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f7fafc;">
             <div style="max-width: 600px; margin: 0 auto; background-color: white;">
               <!-- Header -->
               <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">ShopEase</h1>
+                <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">ShopSwift</h1>
                 <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">Password Reset Request</p>
               </div>
               
@@ -180,7 +180,7 @@ router.post(
                     <li>You have <strong>3 attempts</strong> to enter the correct code</li>
                     <li><strong>Never share this code</strong> with anyone</li>
                     <li>If you didn't request this, please ignore this email and consider changing your password</li>
-                    <li>ShopEase will never ask for this code via phone or other means</li>
+                    <li>ShopSwift will never ask for this code via phone or other means</li>
                   </ul>
                 </div>
                 
@@ -193,10 +193,10 @@ router.post(
               <!-- Footer -->
               <div style="background: #f7fafc; padding: 30px 20px; text-align: center; border-top: 1px solid #e2e8f0;">
                 <p style="color: #718096; margin: 0; font-size: 14px;">
-                  This email was sent by ShopEase. If you have any questions, please contact our support team.
+                  This email was sent by ShopSwift. If you have any questions, please contact our support team.
                 </p>
                 <p style="color: #a0aec0; margin: 10px 0 0 0; font-size: 12px;">
-                  © 2024 ShopEase. All rights reserved.
+                  © 2024 ShopSwift. All rights reserved.
                 </p>
               </div>
             </div>

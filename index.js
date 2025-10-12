@@ -3,7 +3,8 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const asyncHandler = require("express-async-handler");
 const dotenv = require("dotenv");
-const connectDB = require("./utils/db");
+const mongoose = require("mongoose");
+const connectToDatabase = require("./utils/mongo");
 const {
   startNotificationCleanupScheduler,
 } = require("./services/notificationCleanup");
@@ -15,11 +16,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
+// --- Middleware ---
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ extended: true, limit: "10mb" }));
 
-// Security headers
 app.use((req, res, next) => {
   res.header("X-Content-Type-Options", "nosniff");
   res.header("X-Frame-Options", "DENY");
@@ -35,12 +35,22 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// Static file serving
+// Static files
 app.use("/image/products", express.static("public/products"));
 app.use("/image/category", express.static("public/category"));
 app.use("/image/poster", express.static("public/posters"));
 
-// Routes
+// --- Lazy Mongo connection middleware for all requests ---
+app.use(async (req, res, next) => {
+  try {
+    await connectToDatabase(process.env.MONGO_URL);
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Routes ---
 app.use("/categories", require("./routes/category"));
 app.use("/subCategories", require("./routes/subCategory"));
 app.use("/brands", require("./routes/brand"));
@@ -62,7 +72,7 @@ app.use("/ratings", require("./routes/rating"));
 app.use("/chats", require("./routes/chat"));
 app.use("/cart", require("./routes/cart"));
 
-// Health check endpoint
+// --- Health Check ---
 app.get(
   "/",
   asyncHandler(async (req, res) => {
@@ -76,24 +86,31 @@ app.get(
   })
 );
 
-// Monitoring health endpoint
 app.get(
   "/health",
   asyncHandler(async (req, res) => {
+    const dbState =
+      mongoose.connection.readyState === 1 ? "connected" : "disconnected";
     res.status(200).json({
       uptime: process.uptime(),
       message: "OK",
       timestamp: new Date().toISOString(),
-      database:
-        require("mongoose").connection.readyState === 1
-          ? "connected"
-          : "disconnected",
+      database: dbState,
       environment: process.env.NODE_ENV || "development",
     });
   })
 );
 
-// Error handling
+// --- 404 handler ---
+app.all("*", (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found",
+    path: req.originalUrl,
+  });
+});
+
+// --- Error handler ---
 app.use((err, req, res, next) => {
   console.error("❌ Error occurred:", {
     message: err.message,
@@ -119,28 +136,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Handle 404 (any unmatched route)
-app.use("*", (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: "Route not found",
-    path: req.originalUrl,
-  });
-});
+// --- Start schedulers in production ---
+if (process.env.NODE_ENV === "production") {
+  startNotificationCleanupScheduler();
+  OrderCleanupService.scheduleCleanup(24, 5);
+}
 
-// Start schedulers (only when connected)
-connectDB(process.env.MONGO_URL).then(() => {
-  if (process.env.NODE_ENV === "production") {
-    startNotificationCleanupScheduler();
-    OrderCleanupService.scheduleCleanup(24, 5);
-  }
-  console.log("✅ Schedulers started (if in production)");
-});
-
-// Export app for Vercel
+// --- Export for Vercel ---
 module.exports = app;
 
-// Local development mode
+// --- Local development ---
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);

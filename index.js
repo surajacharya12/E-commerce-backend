@@ -182,8 +182,8 @@ app.get(
   })
 );
 
-// --- Handle 404 (MUST come before error handler) ---
-app.use("*", (req, res) => {
+// --- Catch-all 404 (Vercel-friendly) ---
+app.all("*", (req, res) => {
   res.status(404).json({
     success: false,
     message: "Route not found",
@@ -191,23 +191,32 @@ app.use("*", (req, res) => {
   });
 });
 
-// --- Global Error Handler (must be last) ---
-app.use((error, req, res, next) => {
+// --- Global Error Handler ---
+app.use((err, req, res, next) => {
   console.error("❌ Error occurred:", {
-    message: error.message,
-    stack: error.stack,
+    message: err.message,
+    stack: err.stack,
     url: req.url,
     method: req.method,
     timestamp: new Date().toISOString(),
   });
 
+  // Prevent Express-async-handler or runtime from masking 404s
+  if (err.status === 404 || err.name === "NotFoundError") {
+    return res.status(404).json({
+      success: false,
+      message: "Route not found",
+      path: req.originalUrl,
+    });
+  }
+
   const isProd = process.env.NODE_ENV === "production";
-  res.status(error.status || 500).json({
+  res.status(err.status || 500).json({
     success: false,
-    message: isProd ? "Internal server error" : error.message,
-    ...(isProd ? {} : { stack: error.stack }),
+    message: isProd ? "Internal server error" : err.message,
+    ...(isProd ? {} : { stack: err.stack }),
   });
 });
 
-// --- Export app for Vercel or serverless platforms ---
+// --- Export for Vercel ---
 module.exports = app;

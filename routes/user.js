@@ -2,11 +2,9 @@ const express = require("express");
 const asyncHandler = require("express-async-handler");
 const router = express.Router();
 const User = require("../model/user");
-const { userUpload, cloudinary } = require("../config/cloudinary"); // Assuming correct path
+const { userUpload, cloudinary } = require("../config/cloudinary");
 
-/**
- * Get all users (excluding passwords)
- */
+// ---------------------- GET ALL USERS ----------------------
 router.get(
   "/",
   asyncHandler(async (req, res) => {
@@ -19,9 +17,7 @@ router.get(
   })
 );
 
-/**
- * User login
- */
+// ---------------------- LOGIN ----------------------
 router.post(
   "/login",
   asyncHandler(async (req, res) => {
@@ -65,18 +61,16 @@ router.post(
   })
 );
 
-/**
- * Register a new user with optional photo upload
- */
+// ---------------------- REGISTER ----------------------
 router.post(
   "/register",
   userUpload.single("photo"),
   asyncHandler(async (req, res) => {
     const { name, email, phone, password } = req.body;
+
     if (!name || !email || !phone || !password) {
-      // Clean up uploaded file if registration fails
       if (req.file) {
-        /* Add logic to delete temp file */
+        // Optional: delete temp file
       }
       return res.status(400).json({
         success: false,
@@ -87,7 +81,7 @@ router.post(
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       if (req.file) {
-        /* Add logic to delete temp file */
+        // Optional: delete temp file
       }
       return res
         .status(400)
@@ -99,7 +93,6 @@ router.post(
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: "users",
       });
-      // Optionally delete temp file here using fs.unlinkSync(req.file.path)
       photoUrl = result.secure_url;
     }
 
@@ -125,19 +118,15 @@ router.post(
   })
 );
 
-/**
- * Get user by ID
- */
+// ---------------------- GET USER BY ID ----------------------
 router.get(
   "/:id",
   asyncHandler(async (req, res) => {
-    const userID = req.params.id;
-    const user = await User.findById(userID).select("-password");
-    if (!user) {
+    const user = await User.findById(req.params.id).select("-password");
+    if (!user)
       return res
         .status(404)
         .json({ success: false, message: "User not found." });
-    }
     res.json({
       success: true,
       message: "User retrieved successfully.",
@@ -146,19 +135,15 @@ router.get(
   })
 );
 
-/**
- * Get profile by ID
- */
+// ---------------------- GET PROFILE ----------------------
 router.get(
   "/profile/:id",
   asyncHandler(async (req, res) => {
-    const userID = req.params.id;
-    const user = await User.findById(userID).select("-password");
-    if (!user) {
+    const user = await User.findById(req.params.id).select("-password");
+    if (!user)
       return res
         .status(404)
         .json({ success: false, message: "User not found." });
-    }
     res.json({
       success: true,
       message: "User profile retrieved successfully.",
@@ -167,44 +152,32 @@ router.get(
   })
 );
 
-// --- NEW/UPDATED ENDPOINTS ---
-
-/**
- * Endpoint for photo-only upload (Multipart POST)
- * Updates the user's photo field in the database.
- */
+// ---------------------- UPLOAD PROFILE PHOTO ----------------------
 router.post(
   "/photo-upload",
-  userUpload.single("photo"), // Middleware to handle file upload
+  userUpload.single("photo"),
   asyncHandler(async (req, res) => {
-    const { id } = req.body; // Expects user ID in the form data
-    if (!id) {
+    const { id } = req.body;
+    if (!id)
       return res
         .status(400)
         .json({ success: false, message: "User ID is required." });
-    }
-    if (!req.file) {
+    if (!req.file)
       return res
         .status(400)
         .json({ success: false, message: "Photo file is required." });
-    }
 
     const user = await User.findById(id);
-    if (!user) {
+    if (!user)
       return res
         .status(404)
         .json({ success: false, message: "User not found." });
-    }
 
-    // Upload to Cloudinary
     const result = await cloudinary.uploader.upload(req.file.path, {
       folder: "users",
     });
-    // Optionally delete temp file here using fs.unlinkSync(req.file.path)
-
-    user.photo = result.secure_url; // Store the URL in the database
+    user.photo = result.secure_url;
     user.updatedAt = Date.now();
-
     await user.save();
 
     const userObj = user.toObject();
@@ -212,42 +185,34 @@ router.post(
 
     res.json({
       success: true,
-      message: "Photo uploaded and profile updated successfully.",
-      data: { user: userObj }, // Send back updated user data
+      message: "Photo uploaded and profile updated.",
+      data: { user: userObj },
     });
   })
 );
 
-/**
- * Update user profile (Name and/or Password) - Expects JSON body
- */
+// ---------------------- UPDATE PROFILE ----------------------
 router.put(
   "/profile/:id",
-  // 💥 REMOVED: userUpload.single("photo") middleware
   asyncHandler(async (req, res) => {
-    const userID = req.params.id;
-    // Expects JSON body with 'name' and optionally 'password'
-    const { name, password } = req.body;
-
-    if (!name) {
+    const { name, email, phone, password } = req.body;
+    if (!name)
       return res
         .status(400)
         .json({ success: false, message: "Name is required." });
-    }
 
-    const user = await User.findById(userID);
-    if (!user) {
+    const user = await User.findById(req.params.id);
+    if (!user)
       return res
         .status(404)
         .json({ success: false, message: "User not found." });
-    }
 
-    user.name = name;
-    if (password) user.password = password; // Mongoose middleware handles hashing
+    if (name) user.name = name;
+    if (email) user.email = email;
+    if (phone) user.phone = phone;
+    if (password) user.password = password;
+
     user.updatedAt = Date.now();
-
-    // 💥 REMOVED: File upload logic (if (req.file) {...})
-
     await user.save();
 
     const userObj = user.toObject();
@@ -261,21 +226,15 @@ router.put(
   })
 );
 
-/**
- * Delete user by ID
- */
+// ---------------------- DELETE USER ----------------------
 router.delete(
   "/profile/:id",
   asyncHandler(async (req, res) => {
-    const userID = req.params.id;
-
-    const deletedUser = await User.findByIdAndDelete(userID);
-    if (!deletedUser) {
+    const deletedUser = await User.findByIdAndDelete(req.params.id);
+    if (!deletedUser)
       return res
         .status(404)
         .json({ success: false, message: "User not found." });
-    }
-
     res.json({ success: true, message: "User deleted successfully." });
   })
 );

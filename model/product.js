@@ -4,7 +4,7 @@ const productSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, "Name is required"],
+      required: [true, "Product name is required"],
       trim: true,
     },
     description: {
@@ -13,20 +13,62 @@ const productSchema = new mongoose.Schema(
     },
     quantity: {
       type: Number,
-      required: true,
+      required: [true, "Quantity is required"],
+      min: 0,
     },
     stock: {
       type: Number,
-      default: 0,
+      required: [true, "Stock is required"],
       min: 0,
     },
     price: {
       type: Number,
-      required: true,
+      required: [true, "Price is required"],
+      min: 0,
     },
     offerPrice: {
       type: Number,
+      min: 0,
     },
+    images: [
+      {
+        image: {
+          type: Number,
+          required: true,
+        },
+        url: {
+          type: String,
+          default: "no_url",
+        },
+      },
+    ],
+    proCategoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category", // Assuming you have a Category model
+      required: [true, "Category is required"],
+    },
+    proSubCategoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SubCategory", // Assuming you have a SubCategory model
+      required: [true, "Subcategory is required"],
+    },
+    proBrandId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Brand", // Assuming you have a Brand model
+    },
+    // New fields for Colors and Sizes
+    colors: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Color",
+      },
+    ],
+    sizes: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Size",
+      },
+    ],
     rating: {
       userRating: {
         type: Number,
@@ -49,54 +91,27 @@ const productSchema = new mongoose.Schema(
       totalReviews: {
         type: Number,
         default: 0,
+        min: 0,
       },
     },
-    proCategoryId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
-      required: true,
+    points: {
+      type: [String],
+      default: [],
     },
-    proSubCategoryId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "SubCategory",
-      required: true,
+    isActive: {
+      type: Boolean,
+      default: true,
     },
-    proBrandId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Brand",
-    },
-    proVariantTypeId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "VariantType",
-    },
-    proVariantId: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Variant",
-      },
-    ],
-    images: [
-      {
-        image: {
-          type: Number,
-          required: true,
-        },
-        url: {
-          type: String,
-          required: true,
-        },
-      },
-    ],
-    // Short bullet points / highlights about the product
-    points: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
   },
   { timestamps: true }
 );
+
+// Method to calculate average rating
+productSchema.methods.calculateAverageRating = function () {
+  this.rating.averageRating =
+    (this.rating.userRating + this.rating.adminRating) / 2;
+  return this.save();
+};
 
 const Product = mongoose.model("Product", productSchema);
 

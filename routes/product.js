@@ -1,9 +1,11 @@
 const express = require("express");
 const router = express.Router();
-const Product = require("../model/product");
+const Product = require("../model/product"); // Updated path
 const multer = require("multer");
-const { productUpload, cloudinary } = require("../config/cloudinary");
+const { productUpload, cloudinary } = require("../config/cloudinary"); // No change
 const asyncHandler = require("express-async-handler");
+const Color = require("../model/color"); // New import
+const Size = require("../model/size"); // New import
 
 // Get all products
 router.get(
@@ -14,8 +16,8 @@ router.get(
         .populate("proCategoryId", "id name")
         .populate("proSubCategoryId", "id name")
         .populate("proBrandId", "id name")
-        .populate("proVariantTypeId", "id type")
-        .populate("proVariantId", "id name");
+        .populate("colors", "id name hexCode") // Populate colors
+        .populate("sizes", "id name description"); // Populate sizes
       res.json({
         success: true,
         message: "Products retrieved successfully.",
@@ -37,8 +39,8 @@ router.get(
         .populate("proCategoryId", "id name")
         .populate("proSubCategoryId", "id name")
         .populate("proBrandId", "id name")
-        .populate("proVariantTypeId", "id name")
-        .populate("proVariantId", "id name");
+        .populate("colors", "id name hexCode") // Populate colors
+        .populate("sizes", "id name description"); // Populate sizes
       if (!product) {
         return res
           .status(404)
@@ -68,8 +70,8 @@ async function createProductHelper(productData, imageUrls = []) {
     proCategoryId,
     proSubCategoryId,
     proBrandId,
-    proVariantTypeId,
-    proVariantId,
+    colors, // New field
+    sizes, // New field
     adminRating,
   } = productData;
 
@@ -108,8 +110,8 @@ async function createProductHelper(productData, imageUrls = []) {
     proCategoryId,
     proSubCategoryId,
     proBrandId: proBrandId || undefined,
-    proVariantTypeId: proVariantTypeId || undefined,
-    proVariantId: proVariantId || [],
+    colors: colors || [], // Assign colors
+    sizes: sizes || [], // Assign sizes
     images: imageUrls,
     rating: {
       adminRating: adminRating ? parseFloat(adminRating) : 0,
@@ -158,7 +160,47 @@ router.post(
             }
           });
 
-          const newProduct = await createProductHelper(req.body, imageUrls);
+          // Parse colors and sizes if they are JSON strings
+          let colorsArray = [];
+          if (req.body.colors) {
+            try {
+              colorsArray = JSON.parse(req.body.colors);
+            } catch (e) {
+              console.warn(
+                "Could not parse colors JSON, assuming array or single ID:",
+                req.body.colors
+              );
+              colorsArray = Array.isArray(req.body.colors)
+                ? req.body.colors
+                : [req.body.colors];
+            }
+          }
+
+          let sizesArray = [];
+          if (req.body.sizes) {
+            try {
+              sizesArray = JSON.parse(req.body.sizes);
+            } catch (e) {
+              console.warn(
+                "Could not parse sizes JSON, assuming array or single ID:",
+                req.body.sizes
+              );
+              sizesArray = Array.isArray(req.body.sizes)
+                ? req.body.sizes
+                : [req.body.sizes];
+            }
+          }
+
+          const productDataWithVariants = {
+            ...req.body,
+            colors: colorsArray,
+            sizes: sizesArray,
+          };
+
+          const newProduct = await createProductHelper(
+            productDataWithVariants,
+            imageUrls
+          );
           res.json({
             success: true,
             message: "Product created successfully.",
@@ -224,8 +266,8 @@ router.put(
             proCategoryId,
             proSubCategoryId,
             proBrandId,
-            proVariantTypeId,
-            proVariantId,
+            colors, // New field
+            sizes, // New field
             adminRating,
             points,
           } = req.body;
@@ -252,9 +294,25 @@ router.put(
           if (proSubCategoryId)
             productToUpdate.proSubCategoryId = proSubCategoryId;
           if (proBrandId) productToUpdate.proBrandId = proBrandId;
-          if (proVariantTypeId)
-            productToUpdate.proVariantTypeId = proVariantTypeId;
-          if (proVariantId) productToUpdate.proVariantId = proVariantId;
+
+          // Update colors and sizes
+          if (colors !== undefined) {
+            try {
+              productToUpdate.colors = JSON.parse(colors);
+            } catch (e) {
+              productToUpdate.colors = Array.isArray(colors)
+                ? colors
+                : [colors];
+            }
+          }
+          if (sizes !== undefined) {
+            try {
+              productToUpdate.sizes = JSON.parse(sizes);
+            } catch (e) {
+              productToUpdate.sizes = Array.isArray(sizes) ? sizes : [sizes];
+            }
+          }
+
           // Update points (accept JSON string or newline-separated string)
           if (points !== undefined) {
             if (typeof points === "string") {
@@ -338,8 +396,8 @@ router.put(
           proCategoryId,
           proSubCategoryId,
           proBrandId,
-          proVariantTypeId,
-          proVariantId,
+          colors, // New field
+          sizes, // New field
           adminRating,
           points,
         } = req.body;
@@ -366,9 +424,10 @@ router.put(
         if (proSubCategoryId)
           productToUpdate.proSubCategoryId = proSubCategoryId;
         if (proBrandId) productToUpdate.proBrandId = proBrandId;
-        if (proVariantTypeId)
-          productToUpdate.proVariantTypeId = proVariantTypeId;
-        if (proVariantId) productToUpdate.proVariantId = proVariantId;
+
+        // Update colors and sizes
+        if (colors !== undefined) productToUpdate.colors = colors;
+        if (sizes !== undefined) productToUpdate.sizes = sizes;
 
         // Update points (accept JSON string or newline-separated string)
         if (points !== undefined) {
@@ -433,10 +492,16 @@ router.delete(
         for (const image of product.images) {
           if (image.url && image.url !== "no_url") {
             try {
-              const publicId = image.url.split("/").pop().split(".")[0];
-              await cloudinary.uploader.destroy(
-                `online_store/products/${publicId}`
-              );
+              // Extract publicId from the Cloudinary URL.
+              // Example URL: http://res.cloudinary.com/your_cloud_name/image/upload/v1234567890/online_store/products/some_public_id.jpg
+              // We need 'online_store/products/some_public_id'
+              const urlParts = image.url.split("/");
+              const folderAndPublicId =
+                urlParts.slice(urlParts.indexOf("online_store"), -1).join("/") +
+                "/" +
+                urlParts.pop().split(".")[0];
+
+              await cloudinary.uploader.destroy(folderAndPublicId);
             } catch (cloudinaryError) {
               console.log(
                 "Error deleting image from Cloudinary:",

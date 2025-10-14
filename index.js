@@ -54,8 +54,11 @@ app.use(async (req, res, next) => {
 app.use("/categories", require("./routes/category"));
 app.use("/subCategories", require("./routes/subCategory"));
 app.use("/brands", require("./routes/brand"));
-app.use("/variantTypes", require("./routes/variantType"));
-app.use("/variants", require("./routes/variant"));
+// Removed variantTypes and variants routes
+// app.use("/variantTypes", require("./routes/variantType"));
+// app.use("/variants", require("./routes/variant"));
+app.use("/colors", require("./routes/color")); // New route for colors
+app.use("/sizes", require("./routes/size")); // New route for sizes
 app.use("/products", require("./routes/product"));
 app.use("/couponCodes", require("./routes/couponCode"));
 app.use("/posters", require("./routes/poster"));

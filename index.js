@@ -74,7 +74,15 @@ app.use("/favorites", require("./routes/favorite"));
 app.use("/ratings", require("./routes/rating"));
 app.use("/chats", require("./routes/chat"));
 app.use("/cart", require("./routes/cart"));
-app.use("/returns", require("./routes/return"));
+
+// Returns route with error handling
+try {
+  const returnsRouter = require("./routes/return");
+  app.use("/returns", returnsRouter);
+  console.log("✅ Returns router loaded successfully");
+} catch (error) {
+  console.error("❌ Error loading returns router:", error.message);
+}
 
 // --- Health Check ---
 app.get(

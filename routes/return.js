@@ -4,6 +4,15 @@ const Return = require("../model/return");
 const Order = require("../model/order");
 const Product = require("../model/product");
 
+// Test route to verify returns router is working
+router.get("/test", (req, res) => {
+  res.json({
+    success: true,
+    message: "Returns router is working correctly",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Create a new return request
 router.post("/create", async (req, res) => {
   try {
@@ -572,6 +581,19 @@ router.get("/admin/all", async (req, res) => {
       message: "Internal server error",
     });
   }
+});
+
+// Error handling middleware for this router
+router.use((err, req, res, next) => {
+  console.error("Returns router error:", err);
+  res.status(500).json({
+    success: false,
+    message: "Returns router error",
+    error:
+      process.env.NODE_ENV === "production"
+        ? "Internal server error"
+        : err.message,
+  });
 });
 
 module.exports = router;

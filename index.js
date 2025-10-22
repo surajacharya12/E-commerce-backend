@@ -74,6 +74,7 @@ app.use("/favorites", require("./routes/favorite"));
 app.use("/ratings", require("./routes/rating"));
 app.use("/chats", require("./routes/chat"));
 app.use("/cart", require("./routes/cart"));
+app.use("/returns", require("./routes/return"));
 
 // --- Health Check ---
 app.get(

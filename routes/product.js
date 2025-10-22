@@ -7,21 +7,39 @@ const asyncHandler = require("express-async-handler");
 const Color = require("../model/color"); // New import
 const Size = require("../model/size"); // New import
 
-// Get all products
+// Get all products with optional category filtering
 router.get(
   "/",
   asyncHandler(async (req, res) => {
     try {
-      const products = await Product.find()
+      const { proCategoryId, categoryId } = req.query;
+
+      // Build filter object
+      let filter = {};
+
+      // Support both proCategoryId and categoryId query parameters
+      const categoryFilter = proCategoryId || categoryId;
+      if (categoryFilter) {
+        filter.proCategoryId = categoryFilter;
+      }
+
+      const products = await Product.find(filter)
         .populate("proCategoryId", "id name")
         .populate("proSubCategoryId", "id name")
         .populate("proBrandId", "id name")
         .populate("colors", "id name hexCode") // Populate colors
         .populate("sizes", "id name description"); // Populate sizes
+
+      const message = categoryFilter
+        ? `Products retrieved successfully for category ${categoryFilter}.`
+        : "Products retrieved successfully.";
+
       res.json({
         success: true,
-        message: "Products retrieved successfully.",
+        message: message,
         data: products,
+        totalCount: products.length,
+        filter: filter,
       });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
@@ -514,6 +532,183 @@ router.delete(
 
       await Product.findByIdAndDelete(productID);
       res.json({ success: true, message: "Product deleted successfully." });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  })
+);
+
+// Buy Now - Direct checkout for a single product
+router.post(
+  "/buy-now",
+  asyncHandler(async (req, res) => {
+    try {
+      const {
+        productId,
+        quantity = 1,
+        selectedColor,
+        selectedSize,
+        userID,
+        shippingAddress,
+        paymentMethod,
+        deliveryMethod,
+        selectedStore,
+        couponCode,
+      } = req.body;
+
+      // Validate required fields
+      if (
+        !productId ||
+        !userID ||
+        !shippingAddress ||
+        !paymentMethod ||
+        !deliveryMethod
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Product ID, User ID, shipping address, payment method, and delivery method are required.",
+        });
+      }
+
+      // Get product details
+      const product = await Product.findById(productId)
+        .populate("proCategoryId", "id name")
+        .populate("proSubCategoryId", "id name")
+        .populate("proBrandId", "id name")
+        .populate("colors", "id name hexCode")
+        .populate("sizes", "id name description");
+
+      if (!product) {
+        return res.status(404).json({
+          success: false,
+          message: "Product not found.",
+        });
+      }
+
+      // Check stock availability
+      if (product.stock < quantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient stock. Only ${product.stock} items available.`,
+        });
+      }
+
+      // Calculate price (use offer price if available)
+      const unitPrice = product.offerPrice || product.price;
+      const subtotal = unitPrice * quantity;
+
+      // Calculate delivery fee
+      let deliveryFee = 0;
+      if (deliveryMethod === "homeDelivery") {
+        deliveryFee = 150;
+      } else if (deliveryMethod === "storeDelivery") {
+        deliveryFee = 100;
+      }
+
+      // Calculate discount (if coupon applied)
+      let discount = 0;
+      let appliedCoupon = null;
+      if (couponCode) {
+        // You can add coupon validation logic here
+        // For now, we'll just pass it through
+        appliedCoupon = couponCode;
+      }
+
+      // Calculate final total
+      const finalTotal = subtotal + deliveryFee - discount;
+
+      // Create order item
+      const orderItem = {
+        productID: productId,
+        productName: product.name,
+        quantity: parseInt(quantity),
+        price: unitPrice,
+        selectedColor: selectedColor || null,
+        selectedSize: selectedSize || null,
+      };
+
+      // Create order total breakdown
+      const orderTotal = {
+        subtotal: subtotal,
+        deliveryFee: deliveryFee,
+        tax: 0,
+        discount: discount,
+        total: finalTotal,
+      };
+
+      // Return checkout data for frontend processing
+      res.json({
+        success: true,
+        message: "Buy now checkout data prepared successfully.",
+        data: {
+          product: {
+            id: product._id,
+            name: product.name,
+            image: product.images?.[0]?.url || null,
+            price: unitPrice,
+            originalPrice: product.price,
+            offerPrice: product.offerPrice,
+          },
+          orderItem,
+          orderTotal,
+          checkoutData: {
+            userID,
+            items: [orderItem],
+            totalPrice: finalTotal,
+            shippingAddress,
+            paymentMethod,
+            deliveryMethod,
+            selectedStore:
+              deliveryMethod === "storeDelivery" ? selectedStore : null,
+            couponCode: appliedCoupon,
+            orderTotal,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Error preparing buy now checkout:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  })
+);
+
+// Test endpoint to check category filtering
+router.get(
+  "/test-category/:categoryId",
+  asyncHandler(async (req, res) => {
+    try {
+      const { categoryId } = req.params;
+
+      // Get all products for debugging
+      const allProducts = await Product.find()
+        .populate("proCategoryId", "id name")
+        .select("name proCategoryId");
+
+      // Get filtered products
+      const filteredProducts = await Product.find({ proCategoryId: categoryId })
+        .populate("proCategoryId", "id name")
+        .select("name proCategoryId");
+
+      res.json({
+        success: true,
+        message: `Test category filtering for ${categoryId}`,
+        data: {
+          categoryId: categoryId,
+          totalProducts: allProducts.length,
+          filteredProducts: filteredProducts.length,
+          allProductsPreview: allProducts.slice(0, 3).map((p) => ({
+            name: p.name,
+            categoryId: p.proCategoryId?._id,
+            categoryName: p.proCategoryId?.name,
+          })),
+          filteredProductsPreview: filteredProducts.slice(0, 3).map((p) => ({
+            name: p.name,
+            categoryId: p.proCategoryId?._id,
+            categoryName: p.proCategoryId?.name,
+          })),
+        },
+      });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
     }

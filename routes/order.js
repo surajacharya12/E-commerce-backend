@@ -294,6 +294,7 @@ router.put(
           "delivered",
           "cancelled",
         ];
+
         if (!validStatuses.includes(orderStatus)) {
           return res.status(400).json({
             success: false,
@@ -302,6 +303,7 @@ router.put(
               validStatuses.join(", "),
           });
         }
+
         order.orderStatus = orderStatus;
       }
 
@@ -397,6 +399,7 @@ router.patch(
         "delivered",
         "cancelled",
       ];
+
       if (!validStatuses.includes(orderStatus)) {
         return res.status(400).json({
           success: false,

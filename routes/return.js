@@ -4,6 +4,27 @@ const Return = require("../model/return");
 const Order = require("../model/order");
 const Product = require("../model/product");
 
+// Base route - Returns API information
+router.get("/", (req, res) => {
+  res.json({
+    success: true,
+    message: "Returns API is working",
+    timestamp: new Date().toISOString(),
+    availableEndpoints: {
+      "GET /returns": "Returns API information",
+      "GET /returns/test": "Test endpoint",
+      "POST /returns/create": "Create a new return request",
+      "GET /returns/user/:userID": "Get all returns for a user",
+      "GET /returns/user/:userID/delivered-orders":
+        "Get delivered orders for return",
+      "GET /returns/:returnID": "Get return details by ID",
+      "PUT /returns/:returnID/status": "Update return status (Admin)",
+      "PUT /returns/:returnID/cancel": "Cancel return request (User)",
+      "GET /returns/admin/all": "Get all returns (Admin)",
+    },
+  });
+});
+
 // Test route to verify returns router is working
 router.get("/test", (req, res) => {
   res.json({

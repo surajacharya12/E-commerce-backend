@@ -123,9 +123,18 @@ router.post(
         minimumPurchaseAmount: minimumPurchaseAmount || 0,
         endDate: endDateTime,
         status: status || "active",
-        applicableCategory: applicableCategory || null,
-        applicableSubCategory: applicableSubCategory || null,
-        applicableProduct: applicableProduct || null,
+        applicableCategory:
+          applicableCategory && applicableCategory !== ""
+            ? applicableCategory
+            : null,
+        applicableSubCategory:
+          applicableSubCategory && applicableSubCategory !== ""
+            ? applicableSubCategory
+            : null,
+        applicableProduct:
+          applicableProduct && applicableProduct !== ""
+            ? applicableProduct
+            : null,
       });
 
       const newCoupon = await coupon.save();
@@ -212,11 +221,20 @@ router.put(
       }
       if (status) coupon.status = status;
       if (applicableCategory !== undefined)
-        coupon.applicableCategory = applicableCategory;
+        coupon.applicableCategory =
+          applicableCategory && applicableCategory !== ""
+            ? applicableCategory
+            : null;
       if (applicableSubCategory !== undefined)
-        coupon.applicableSubCategory = applicableSubCategory;
+        coupon.applicableSubCategory =
+          applicableSubCategory && applicableSubCategory !== ""
+            ? applicableSubCategory
+            : null;
       if (applicableProduct !== undefined)
-        coupon.applicableProduct = applicableProduct;
+        coupon.applicableProduct =
+          applicableProduct && applicableProduct !== ""
+            ? applicableProduct
+            : null;
 
       await coupon.save();
       res.json({
@@ -499,6 +517,114 @@ router.get(
         data: activeCoupons,
       });
     } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  })
+);
+
+// Get coupons applicable for specific products
+router.post(
+  "/applicable-coupons",
+  asyncHandler(async (req, res) => {
+    try {
+      const { productIds } = req.body;
+
+      if (
+        !productIds ||
+        !Array.isArray(productIds) ||
+        productIds.length === 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Product IDs array is required.",
+        });
+      }
+
+      // Get products to check their categories and subcategories
+      const products = await Product.find({ _id: { $in: productIds } });
+
+      if (products.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "No products found.",
+        });
+      }
+
+      // Get all active coupons
+      const activeCoupons = await Coupon.find({
+        status: "active",
+        endDate: { $gt: new Date() },
+      }).populate("applicableCategory applicableSubCategory applicableProduct");
+
+      // Filter coupons applicable to the products
+      const applicableCoupons = [];
+
+      for (const coupon of activeCoupons) {
+        // Check if coupon is applicable for all products (no restrictions)
+        if (
+          !coupon.applicableCategory &&
+          !coupon.applicableSubCategory &&
+          !coupon.applicableProduct
+        ) {
+          applicableCoupons.push({
+            ...coupon.toObject(),
+            applicableProducts: productIds, // All products
+          });
+          continue;
+        }
+
+        // Check which products this coupon applies to
+        const applicableProductIds = [];
+
+        for (const product of products) {
+          let isApplicable = true;
+
+          // Check category restriction
+          if (
+            coupon.applicableCategory &&
+            coupon.applicableCategory.toString() !==
+              product.proCategoryId.toString()
+          ) {
+            isApplicable = false;
+          }
+
+          // Check subcategory restriction
+          if (
+            coupon.applicableSubCategory &&
+            coupon.applicableSubCategory.toString() !==
+              product.proSubCategoryId.toString()
+          ) {
+            isApplicable = false;
+          }
+
+          // Check specific product restriction
+          if (
+            coupon.applicableProduct &&
+            coupon.applicableProduct.toString() !== product._id.toString()
+          ) {
+            isApplicable = false;
+          }
+
+          if (isApplicable) {
+            applicableProductIds.push(product._id.toString());
+          }
+        }
+
+        if (applicableProductIds.length > 0) {
+          applicableCoupons.push({
+            ...coupon.toObject(),
+            applicableProducts: applicableProductIds,
+          });
+        }
+      }
+
+      res.json({
+        success: true,
+        message: "Applicable coupons retrieved successfully.",
+        data: applicableCoupons,
+      });
+    } catch (error) {
+      console.error("Error getting applicable coupons:", error);
       res.status(500).json({ success: false, message: error.message });
     }
   })

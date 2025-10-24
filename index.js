@@ -29,9 +29,19 @@ app.use((req, res, next) => {
 
 // CORS
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || "*",
+  origin: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",").map((url) => url.trim())
+    : [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "https://your-dashboard-domain.com",
+        "https://your-web-app-domain.com",
+        // Add your actual deployed frontend URLs here
+      ],
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
 };
 app.use(cors(corsOptions));
 
